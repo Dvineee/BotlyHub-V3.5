@@ -31,7 +31,7 @@ export class DatabaseService {
       .from('bot_logs')
       .select('*, bots(*), users(*)')
       .order('timestamp', { ascending: false })
-      .limit(50);
+      .limit(100);
     return data || [];
   }
 
@@ -49,11 +49,19 @@ export class DatabaseService {
   }
 
   static async saveBot(bot: Partial<Bot>) {
-    // Statü yönetimi: Eğer yeni bir kod eklendiyse Deploying aşamasından başlar
-    const { data, error } = await supabase.from('bots').upsert({
+    const { data } = await supabase.from('bots').upsert({
       ...bot,
       status: bot.python_code ? 'Active' : 'Error'
     }, { onConflict: 'id' }).select();
+    
+    // Admin bot eklediğinde bir sistem logu oluştur
+    await this.addBotLog({
+        action: `Sistem: "${bot.name}" botu markete eklendi/güncellendi.`,
+        status: 'info',
+        bot_id: data?.[0]?.id,
+        user_id: 'SYSTEM_ADMIN'
+    });
+
     return data?.[0];
   }
 
@@ -61,7 +69,35 @@ export class DatabaseService {
     await supabase.from('bots').delete().eq('id', id);
   }
 
-  // --- User Bot Connections ---
+  // --- User & Channel Management ---
+  static async getUsers(): Promise<User[]> {
+    const { data } = await supabase.from('users').select('*').order('joinDate', { ascending: false });
+    return data || [];
+  }
+
+  static async updateUserStatus(id: string, status: 'Active' | 'Passive') {
+    await supabase.from('users').update({ status }).eq('id', id);
+  }
+
+  static async syncUser(user: Partial<User>) {
+    await supabase.from('users').upsert(user, { onConflict: 'id' });
+  }
+
+  // --- Announcements (Market Promo Cards) ---
+  static async getAnnouncements(): Promise<Announcement[]> {
+    const { data } = await supabase.from('announcements').select('*').order('id', { ascending: false });
+    return data || [];
+  }
+
+  static async saveAnnouncement(ann: Partial<Announcement>) {
+    await supabase.from('announcements').upsert(ann, { onConflict: 'id' });
+  }
+
+  static async deleteAnnouncement(id: string) {
+    await supabase.from('announcements').delete().eq('id', id);
+  }
+
+  // --- User Bot Connections (Runtime) ---
   static async getBotConnections(userId: string): Promise<(BotConnection & { bots: Bot, channels: Channel })[]> {
     const { data } = await supabase
       .from('bot_connections')
@@ -109,50 +145,12 @@ export class DatabaseService {
     return data || [];
   }
 
-  static async sendNotification(notif: any) {
-    await supabase.from('notifications').insert({ ...notif, date: new Date().toISOString(), isRead: false });
-  }
-
+  // --- Fix: Added markNotificationRead to handle error in Notifications.tsx ---
   static async markNotificationRead(id: string) {
     await supabase.from('notifications').update({ isRead: true }).eq('id', id);
   }
 
-  // --- User & Channel Management ---
-  static async getUsers(): Promise<User[]> {
-    const { data } = await supabase.from('users').select('*').order('id', { ascending: false });
-    return data || [];
-  }
-
-  static async updateUserStatus(id: string, status: string) {
-    await supabase.from('users').update({ status }).eq('id', id);
-  }
-
-  static async syncUser(user: Partial<User>) {
-    await supabase.from('users').upsert(user, { onConflict: 'id' });
-  }
-
-  static async getChannels(userId: string): Promise<Channel[]> {
-    const { data } = await supabase.from('channels').select('*').eq('user_id', userId);
-    return data || [];
-  }
-
-  static async saveChannel(channel: Partial<Channel>) {
-    await supabase.from('channels').upsert(channel, { onConflict: 'id' });
-  }
-
-  static async getAnnouncements(): Promise<Announcement[]> {
-    const { data } = await supabase.from('announcements').select('*').order('id', { ascending: false });
-    return data || [];
-  }
-
-  static async saveAnnouncement(ann: Partial<Announcement>) {
-    await supabase.from('announcements').upsert(ann, { onConflict: 'id' });
-  }
-
-  static async deleteAnnouncement(id: string) {
-    await supabase.from('announcements').delete().eq('id', id);
-  }
-
+  // --- System Settings ---
   static async getSettings() {
     const { data } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
     return data;
@@ -171,17 +169,13 @@ export class DatabaseService {
     await supabase.from('user_bots').upsert({ user_id: userId, bot_id: bot.id, purchased: bot.price > 0, is_active: true }, { onConflict: 'user_id,bot_id' });
   }
 
-  static async getUserDetailedAssets(userId: string) {
-    const [channels, logs, userBots] = await Promise.all([
-      supabase.from('channels').select('*').eq('user_id', userId),
-      supabase.from('notifications').select('*').eq('user_id', userId).order('date', { ascending: false }),
-      supabase.from('user_bots').select('*, bots(*)').eq('user_id', userId)
-    ]);
-    return {
-      channels: channels.data || [],
-      logs: logs.data || [],
-      bots: (userBots.data || []).map((ub: any) => ub.bots).filter(Boolean) as Bot[]
-    };
+  static async getChannels(userId: string): Promise<Channel[]> {
+    const { data } = await supabase.from('channels').select('*').eq('user_id', userId);
+    return data || [];
+  }
+
+  static async saveChannel(channel: Partial<Channel>) {
+    await supabase.from('channels').upsert(channel, { onConflict: 'id' });
   }
 
   // --- Auth Utils ---
