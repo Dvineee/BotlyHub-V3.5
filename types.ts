@@ -32,6 +32,12 @@ export interface Bot {
   isPremium?: boolean;
 }
 
+// Fixed: Added UserBot interface to resolve exported member errors
+export interface UserBot extends Bot {
+  isAdEnabled: boolean;
+  isActive: boolean;
+}
+
 export interface BotLog {
   id: string;
   bot_id: string;
@@ -58,6 +64,7 @@ export interface Announcement {
   id: string;
   title: string;
   description: string;
+  content_detail?: string; // Fixed: Added content_detail property
   button_text: string;
   button_link: string;
   icon_name: string;
@@ -73,6 +80,43 @@ export interface Notification {
   message: string;
   date: string;
   isRead: boolean;
+}
+
+// Fixed: Added BotConnection interface to resolve exported member errors
+export interface BotConnection {
+  id: string;
+  user_id: string;
+  bot_id: string;
+  channel_id: string;
+  status: string;
+  is_admin_verified: boolean;
+  timestamp: string;
+}
+
+// Fixed: Added SubscriptionPlan interface to resolve exported member errors
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price: number;
+  billingPeriod: string;
+  description: string;
+  color: string;
+  icon: any;
+  features: string[];
+  isPopular?: boolean;
+}
+
+// Fixed: Added CryptoTransaction interface to resolve exported member errors
+export interface CryptoTransaction {
+  id: string;
+  type: string;
+  amount: number;
+  symbol: string;
+  chain: string;
+  toAddress: string;
+  date: string;
+  status: string;
+  hash: string;
 }
 
 declare global {
