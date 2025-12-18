@@ -21,9 +21,13 @@ export interface Bot {
   category: string;
   bot_link: string;
   screenshots: string[];
-  python_code?: string; // Botun çekirdek çalışma kodları
-  status?: 'Active' | 'Deploying' | 'Error' | 'Stopped';
-  // Fixed: Added isNew and isPremium properties to match data.tsx and SearchPage usage
+  python_code?: string;
+  status: 'Active' | 'Deploying' | 'Error' | 'Stopped' | 'Booting';
+  runtime_id?: string; // Process ID (PID)
+  uptime_start?: string;
+  memory_usage?: number; // MB
+  cpu_usage?: number; // %
+  last_ping?: string;
   isNew?: boolean;
   isPremium?: boolean;
 }
@@ -35,23 +39,8 @@ export interface BotLog {
   channel_id?: string;
   action: string;
   timestamp: string;
-  status: 'success' | 'error' | 'info' | 'critical';
-}
-
-export interface BotConnection {
-  id: string;
-  user_id: string;
-  bot_id: string;
-  channel_id: string;
-  is_admin_verified: boolean;
-  last_check_at: string;
-  status: 'Active' | 'MissingPermissions' | 'Stopped' | 'Pending';
-}
-
-export interface UserBot extends Bot {
-  isAdEnabled: boolean;
-  isActive: boolean;
-  purchased: boolean;
+  status: 'success' | 'error' | 'info' | 'critical' | 'terminal';
+  details?: string;
 }
 
 export interface Channel {
@@ -75,8 +64,6 @@ export interface Announcement {
   color_scheme: string;
   is_active: boolean;
   action_type: 'link' | 'popup';
-  // Fixed: Added content_detail property used in Home.tsx line 206
-  content_detail?: string;
 }
 
 export interface Notification {
@@ -86,33 +73,6 @@ export interface Notification {
   message: string;
   date: string;
   isRead: boolean;
-  target_type?: 'user' | 'global';
-}
-
-// Fixed: Added SubscriptionPlan interface used in data.tsx
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  billingPeriod: string;
-  description: string;
-  color: string;
-  icon: any;
-  features: string[];
-  isPopular?: boolean;
-}
-
-// Fixed: Added CryptoTransaction interface used in services/WalletService.ts
-export interface CryptoTransaction {
-  id: string;
-  type: 'Withdrawal' | 'Deposit' | 'Internal' | 'Payment';
-  amount: number;
-  symbol: string;
-  chain: string;
-  toAddress: string;
-  date: string;
-  status: 'Processing' | 'Completed' | 'Failed';
-  hash: string;
 }
 
 declare global {
