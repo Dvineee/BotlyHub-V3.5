@@ -31,34 +31,38 @@ export class DatabaseService {
   static async startBotRuntime(botId: string) {
     const pid = Math.floor(Math.random() * 90000) + 10000;
     
-    // Booting durumuna çek
+    // AŞAMA 1: Hazırlık Durumu
     const { error: bootError } = await supabase.from('bots').update({ 
       status: 'Booting',
       last_ping: new Date().toISOString()
     }).eq('id', botId);
 
-    if (bootError) throw new Error("Veritabanı erişim hatası (status sütunu bulunamadı). Lütfen SQL kodlarını Supabase'de çalıştırın.");
+    if (bootError) {
+        console.error("Supabase Error:", bootError);
+        throw new Error(`Veritabanı Hatası: ${bootError.message}. Lütfen SQL kodunu Supabase Editor'de çalıştırdığınızdan emin olun.`);
+    }
     
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `[BOOT] Sunucu ortamı PID ${pid} için hazırlanıyor...`,
+      action: `[BOOT] Sunucu konteyneri hazırlanıyor (PID: ${pid})...`,
       status: 'terminal'
     });
 
     return new Promise((resolve, reject) => {
       setTimeout(async () => {
+        // AŞAMA 2: Çalışma Durumu ve Metrikler
         const { data, error } = await supabase.from('bots').update({
           status: 'Active',
           runtime_id: `PID_${pid}`,
           uptime_start: new Date().toISOString(),
-          memory_usage: 24,
-          cpu_usage: 2,
+          memory_usage: Math.floor(Math.random() * 30) + 15,
+          cpu_usage: Math.floor(Math.random() * 4) + 1,
           last_ping: new Date().toISOString()
         }).eq('id', botId).select();
 
         if (error) {
-            // Eğer metrik sütunları yoksa sadece status ile devam et
+            console.warn("Metrik sütunları (memory_usage vb.) eksik, sadece durum güncelleniyor.");
             const { data: fallbackData, error: fbError } = await supabase.from('bots').update({
                 status: 'Active'
             }).eq('id', botId).select();
@@ -72,10 +76,10 @@ export class DatabaseService {
         await this.addBotLog({
           bot_id: botId,
           user_id: 'SYSTEM',
-          action: `[RUN] Botly Engine Çevrimiçi. Polling devrede.`,
+          action: `[RUN] Botly Engine v3.5 Online. Polling/Webhook devrede.`,
           status: 'terminal'
         });
-      }, 1200);
+      }, 1500);
     });
   }
 
@@ -84,19 +88,21 @@ export class DatabaseService {
       status: 'Stopped',
       runtime_id: null,
       memory_usage: 0,
-      cpu_usage: 0
+      cpu_usage: 0,
+      last_ping: new Date().toISOString()
     }).eq('id', botId);
 
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `[STOP] Süreç admin tarafından durduruldu.`,
+      action: `[STOP] Süreç admin/kullanıcı tarafından durduruldu.`,
       status: 'terminal'
     });
   }
 
   static async updateConnectionStatus(connectionId: string, status: string) {
-    await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
+    const { error } = await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
+    if (error) console.error("Bağlantı güncellenemedi:", error);
   }
 
   static async saveBotConfiguration(bot: Partial<Bot>) {
