@@ -9,7 +9,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export class DatabaseService {
   
-  // --- Admin Stats ---
   static async getAdminStats() {
     try {
         const [users, bots, logs, actives] = await Promise.all([
@@ -29,20 +28,16 @@ export class DatabaseService {
     }
   }
 
-  // --- Güvenli Runtime Kontrolü (400 Bad Request Hatalarını Önler) ---
   static async startBotRuntime(botId: string) {
     const pid = Math.floor(Math.random() * 90000) + 10000;
     
-    // AŞAMA 1: Sadece Durum Güncelle (En güvenli yol)
-    // Eğer veritabanınızda 'status' sütunu varsa bu her zaman çalışır.
-    const { error: initialError } = await supabase.from('bots').update({ 
-      status: 'Booting'
+    // Booting durumuna çek
+    const { error: bootError } = await supabase.from('bots').update({ 
+      status: 'Booting',
+      last_ping: new Date().toISOString()
     }).eq('id', botId);
 
-    if (initialError) {
-        console.error("Bot başlatılamadı (Sütun hatası olabilir):", initialError);
-        throw initialError;
-    }
+    if (bootError) throw new Error("Veritabanı erişim hatası (status sütunu bulunamadı). Lütfen SQL kodlarını Supabase'de çalıştırın.");
     
     await this.addBotLog({
       bot_id: botId,
@@ -51,26 +46,24 @@ export class DatabaseService {
       status: 'terminal'
     });
 
-    // AŞAMA 2: Detaylı Güncelleme Denemesi
     return new Promise((resolve, reject) => {
       setTimeout(async () => {
-        // Önce detaylı (metrikli) deneme yap
         const { data, error } = await supabase.from('bots').update({
           status: 'Active',
           runtime_id: `PID_${pid}`,
           uptime_start: new Date().toISOString(),
           memory_usage: 24,
-          cpu_usage: 2
+          cpu_usage: 2,
+          last_ping: new Date().toISOString()
         }).eq('id', botId).select();
 
-        // Eğer detaylı güncelleme hata verirse (400), sadece statüsü 'Active' yap
         if (error) {
-            console.warn("Metrik sütunları eksik, sadece durum güncelleniyor.");
-            const { data: fallbackData, error: fallbackError } = await supabase.from('bots').update({
+            // Eğer metrik sütunları yoksa sadece status ile devam et
+            const { data: fallbackData, error: fbError } = await supabase.from('bots').update({
                 status: 'Active'
             }).eq('id', botId).select();
             
-            if (fallbackError) reject(fallbackError);
+            if (fbError) reject(fbError);
             else resolve(fallbackData?.[0]);
         } else {
             resolve(data?.[0]);
@@ -82,23 +75,17 @@ export class DatabaseService {
           action: `[RUN] Botly Engine Çevrimiçi. Polling devrede.`,
           status: 'terminal'
         });
-      }, 1000);
+      }, 1200);
     });
   }
 
   static async stopBotRuntime(botId: string) {
-    // Güvenli durdurma: Sadece 'status' sütununu hedefle
-    const { error } = await supabase.from('bots').update({
-      status: 'Stopped'
+    await supabase.from('bots').update({
+      status: 'Stopped',
+      runtime_id: null,
+      memory_usage: 0,
+      cpu_usage: 0
     }).eq('id', botId);
-
-    if (error) {
-        console.error("Durdurma hatası:", error);
-        // Eğer runtime_id varsa temizlemeyi dene ama hata verirse durma
-        try {
-            await supabase.from('bots').update({ runtime_id: null }).eq('id', botId);
-        } catch(e) {}
-    }
 
     await this.addBotLog({
       bot_id: botId,
@@ -109,13 +96,12 @@ export class DatabaseService {
   }
 
   static async updateConnectionStatus(connectionId: string, status: string) {
-    const { error } = await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
-    if (error) console.error("Bağlantı durumu güncellenemedi:", error);
+    await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
   }
 
-  // --- Standart Metotlar ---
   static async saveBotConfiguration(bot: Partial<Bot>) {
-    const { data } = await supabase.from('bots').upsert(bot, { onConflict: 'id' }).select();
+    const { data, error } = await supabase.from('bots').upsert(bot, { onConflict: 'id' }).select();
+    if (error) throw error;
     return data?.[0];
   }
 
