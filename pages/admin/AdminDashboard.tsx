@@ -155,7 +155,7 @@ const RuntimeMonitor = () => {
     const [bots, setBots] = useState<BotType[]>([]);
     useEffect(() => { 
         load(); 
-        const i = setInterval(load, 5000); 
+        const i = setInterval(load, 3000); 
         return () => clearInterval(i); 
     }, []);
 
@@ -231,10 +231,18 @@ const BotManagement = () => {
     const [terminalLines, setTerminalLines] = useState<string[]>([]);
     const terminalEndRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { 
+        load(); 
+        const i = setInterval(load, 3000); 
+        return () => clearInterval(i);
+    }, []);
+    
     useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [terminalLines]);
 
-    const load = async () => setBots(await DatabaseService.getBots());
+    const load = async () => {
+        const data = await DatabaseService.getBots();
+        setBots(data);
+    };
 
     const handleAction = async (bot: BotType) => {
         if (bot.status === 'Active' || bot.status === 'Booting') {
@@ -249,7 +257,7 @@ const BotManagement = () => {
                 '[DEPLOY] Script starting in detached mode...'
             ]);
             
-            await new Promise(r => setTimeout(r, 1200));
+            // Gerçekten DB'yi güncelle ve bekle
             await DatabaseService.startBotRuntime(bot.id);
             setIsDeploying(false);
         }
@@ -276,9 +284,13 @@ const BotManagement = () => {
                         </div>
                         <h4 className="font-black text-white text-lg uppercase italic mb-2 truncate relative z-10">{b.name}</h4>
                         <div className="flex gap-2 mt-auto relative z-10">
-                            <button onClick={() => handleAction(b)} className={`flex-1 py-4 border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${(b.status === 'Active' || b.status === 'Booting') ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-blue-600 border-blue-600 text-white'}`}>
-                                {(b.status === 'Active' || b.status === 'Booting') ? <Square size={14}/> : <Play size={14}/>} 
-                                {(b.status === 'Active' || b.status === 'Booting') ? 'DURDUR' : 'BAŞLAT'}
+                            <button 
+                                onClick={() => handleAction(b)} 
+                                disabled={isDeploying || b.status === 'Booting'}
+                                className={`flex-1 py-4 border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${(b.status === 'Active' || b.status === 'Booting') ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'}`}
+                            >
+                                {b.status === 'Booting' ? <Loader2 size={14} className="animate-spin" /> : (b.status === 'Active' ? <Square size={14}/> : <Play size={14}/>)} 
+                                {b.status === 'Booting' ? 'BEKLEYİN' : (b.status === 'Active' ? 'DURDUR' : 'BAŞLAT')}
                             </button>
                             <button onClick={() => { setEditingBot(b); setIsModalOpen(true); }} className="p-4 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-2xl transition-all"><Edit2 size={16}/></button>
                         </div>

@@ -9,7 +9,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export class DatabaseService {
   
-  // --- Bulut Altyapısı Yönetimi ---
+  // --- Admin Stats ---
   static async getAdminStats() {
     const [users, bots, logs, actives] = await Promise.all([
       supabase.from('users').select('id', { count: 'exact', head: true }),
@@ -25,38 +25,44 @@ export class DatabaseService {
     };
   }
 
-  // --- Process Control (Süreç Kontrolü) ---
+  // --- Gerçek Zamanlı Runtime Kontrolü ---
   static async startBotRuntime(botId: string) {
     const pid = Math.floor(Math.random() * 90000) + 10000;
     
-    // Durumu 'Booting' yap (Başlatılıyor)
-    await supabase.from('bots').update({ status: 'Booting' }).eq('id', botId);
+    // AŞAMA 1: Booting (Başlatılıyor)
+    await supabase.from('bots').update({ 
+      status: 'Booting',
+      last_ping: new Date().toISOString()
+    }).eq('id', botId);
     
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `BOOT: Initializing VM environment for PID ${pid}...`,
+      action: `[BOOT] Environment provisioning for PID ${pid}...`,
       status: 'terminal'
     });
 
-    // 2 saniye sonra gerçek 'Active' durumuna geç
-    setTimeout(async () => {
-        await supabase.from('bots').update({
+    // AŞAMA 2: Gecikmeli Aktivasyon (Gerçek server ayağa kalkma simülasyonu)
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        const { data } = await supabase.from('bots').update({
           status: 'Active',
           runtime_id: `PID_${pid}`,
           uptime_start: new Date().toISOString(),
           memory_usage: Math.floor(Math.random() * 45) + 15,
           cpu_usage: Math.floor(Math.random() * 8) + 1,
           last_ping: new Date().toISOString()
-        }).eq('id', botId);
+        }).eq('id', botId).select();
 
         await this.addBotLog({
           bot_id: botId,
           user_id: 'SYSTEM',
-          action: `RUNTIME: Bot engine v3.5 is now running 24/7 on Node-01.`,
+          action: `[RUN] Botly Core Engine v3.5 is now ONLINE. Polling started.`,
           status: 'terminal'
         });
-    }, 2000);
+        resolve(data?.[0]);
+      }, 1500);
+    });
   }
 
   static async stopBotRuntime(botId: string) {
@@ -65,13 +71,14 @@ export class DatabaseService {
       runtime_id: null,
       uptime_start: null,
       memory_usage: 0,
-      cpu_usage: 0
+      cpu_usage: 0,
+      last_ping: new Date().toISOString()
     }).eq('id', botId);
 
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `SIGTERM: Process killed by admin. Bot is now offline.`,
+      action: `[STOP] SIGTERM received. Process terminated gracefully.`,
       status: 'terminal'
     });
   }
@@ -93,11 +100,7 @@ export class DatabaseService {
     return data;
   }
 
-  static async deleteBot(id: string) {
-    await supabase.from('bots').delete().eq('id', id);
-  }
-
-  // --- Loglama ve Monitoring ---
+  // --- Loglama ---
   static async addBotLog(log: Partial<BotLog>) {
     await supabase.from('bot_logs').insert({ ...log, timestamp: new Date().toISOString() });
   }
@@ -178,12 +181,22 @@ export class DatabaseService {
   }
 
   static async connectBotToChannel(userId: string, botId: string, channelId: string): Promise<void> {
-    await supabase.from('bot_connections').insert({ user_id: userId, bot_id: botId, channel_id: channelId, is_admin_verified: false, status: 'Pending' });
+    await supabase.from('bot_connections').insert({ 
+      user_id: userId, 
+      bot_id: botId, 
+      channel_id: channelId, 
+      is_admin_verified: false, 
+      status: 'Stopped' // Başlangıçta kapalı
+    });
   }
 
   static async getBotConnections(userId: string): Promise<any[]> {
     const { data } = await supabase.from('bot_connections').select('*, bots(*), channels(*)').eq('user_id', userId);
     return data || [];
+  }
+
+  static async updateConnectionStatus(connectionId: string, status: string) {
+    await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
   }
 
   static async verifyBotAdmin(connectionId: string): Promise<boolean> {
