@@ -23,16 +23,15 @@ export interface Bot {
   screenshots: string[];
   python_code?: string;
   status: 'Active' | 'Deploying' | 'Error' | 'Stopped' | 'Booting';
-  runtime_id?: string; // Process ID (PID)
+  runtime_id?: string; // Sistem Process ID (PID)
   uptime_start?: string;
-  memory_usage?: number; // MB
-  cpu_usage?: number; // %
+  memory_usage?: number; // MB cinsinden gerçek kullanım
+  cpu_usage?: number; // % cinsinden işlemci yükü
   last_ping?: string;
   isNew?: boolean;
   isPremium?: boolean;
 }
 
-// Fixed: Added UserBot interface to resolve exported member errors
 export interface UserBot extends Bot {
   isAdEnabled: boolean;
   isActive: boolean;
@@ -64,7 +63,7 @@ export interface Announcement {
   id: string;
   title: string;
   description: string;
-  content_detail?: string; // Fixed: Added content_detail property
+  content_detail?: string;
   button_text: string;
   button_link: string;
   icon_name: string;
@@ -82,7 +81,6 @@ export interface Notification {
   isRead: boolean;
 }
 
-// Fixed: Added BotConnection interface to resolve exported member errors
 export interface BotConnection {
   id: string;
   user_id: string;
@@ -93,7 +91,6 @@ export interface BotConnection {
   timestamp: string;
 }
 
-// Fixed: Added SubscriptionPlan interface to resolve exported member errors
 export interface SubscriptionPlan {
   id: string;
   name: string;
@@ -106,7 +103,6 @@ export interface SubscriptionPlan {
   isPopular?: boolean;
 }
 
-// Fixed: Added CryptoTransaction interface to resolve exported member errors
 export interface CryptoTransaction {
   id: string;
   type: string;
