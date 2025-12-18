@@ -245,30 +245,33 @@ const BotManagement = () => {
     };
 
     const handleAction = async (bot: BotType) => {
-        if (bot.status === 'Active' || bot.status === 'Booting') {
-            await DatabaseService.stopBotRuntime(bot.id);
-        } else {
-            setIsDeploying(true);
-            setTerminalLines([
-                '[SYSTEM] Initializing deployment...', 
-                '[CLOUD] Node selection: DE-FRA-01', 
-                '[RUNTIME] Cloning Python source code...',
-                '[RUNTIME] Setting up virtualenv (v3.10)...',
-                '[DEPLOY] Script starting in detached mode...'
-            ]);
-            
-            // Gerçekten DB'yi güncelle ve bekle
-            await DatabaseService.startBotRuntime(bot.id);
+        try {
+            if (bot.status === 'Active' || bot.status === 'Booting') {
+                await DatabaseService.stopBotRuntime(bot.id);
+            } else {
+                setIsDeploying(true);
+                setTerminalLines([
+                    '[SYSTEM] Dağıtım başlatılıyor...', 
+                    '[CLOUD] Node seçimi: DE-FRA-01', 
+                    '[RUNTIME] Python kaynak kodları çekiliyor...',
+                    '[DEPLOY] Betik arka planda çalıştırılıyor...'
+                ]);
+                
+                await DatabaseService.startBotRuntime(bot.id);
+                setIsDeploying(false);
+            }
+            load();
+        } catch (e: any) {
             setIsDeploying(false);
+            alert("İşlem Başarısız: " + (e.message || "Bilinmeyen veritabanı hatası."));
         }
-        load();
     };
 
     return (
         <div className="space-y-10 animate-in fade-in">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">BOT <span className="text-blue-500">HAVUZU</span></h2>
-                <button onClick={() => { setEditingBot({ name: '', description: '', price: 0, category: 'productivity', bot_link: '', icon: '', python_code: 'import logging\nfrom telegram import Update\nfrom telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler\n\n# Your code here...' }); setIsModalOpen(true); }} className="px-8 py-4 bg-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2 shadow-2xl active:scale-95 transition-all">
+                <button onClick={() => { setEditingBot({ name: '', description: '', price: 0, category: 'productivity', bot_link: '', icon: '', python_code: 'import logging\nfrom telegram import Update\n\n# Kod buraya...' }); setIsModalOpen(true); }} className="px-8 py-4 bg-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2 shadow-2xl active:scale-95 transition-all">
                     <Plus size={18} strokeWidth={3}/> Yeni Bot Oluştur
                 </button>
             </div>

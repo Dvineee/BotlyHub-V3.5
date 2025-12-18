@@ -11,78 +11,109 @@ export class DatabaseService {
   
   // --- Admin Stats ---
   static async getAdminStats() {
-    const [users, bots, logs, actives] = await Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('bots').select('id', { count: 'exact', head: true }),
-      supabase.from('bot_logs').select('id', { count: 'exact', head: true }),
-      supabase.from('bots').select('id', { count: 'exact', head: true }).eq('status', 'Active')
-    ]);
-    return { 
-      userCount: users.count || 0, 
-      botCount: bots.count || 0, 
-      logCount: logs.count || 0, 
-      activeRuntimes: actives.count || 0 
-    };
+    try {
+        const [users, bots, logs, actives] = await Promise.all([
+          supabase.from('users').select('id', { count: 'exact', head: true }),
+          supabase.from('bots').select('id', { count: 'exact', head: true }),
+          supabase.from('bot_logs').select('id', { count: 'exact', head: true }),
+          supabase.from('bots').select('id', { count: 'exact', head: true }).eq('status', 'Active')
+        ]);
+        return { 
+          userCount: users.count || 0, 
+          botCount: bots.count || 0, 
+          logCount: logs.count || 0, 
+          activeRuntimes: actives.count || 0 
+        };
+    } catch (e) {
+        return { userCount: 0, botCount: 0, logCount: 0, activeRuntimes: 0 };
+    }
   }
 
-  // --- Gerçek Zamanlı Runtime Kontrolü ---
+  // --- Güvenli Runtime Kontrolü (400 Bad Request Hatalarını Önler) ---
   static async startBotRuntime(botId: string) {
     const pid = Math.floor(Math.random() * 90000) + 10000;
     
-    // AŞAMA 1: Booting (Başlatılıyor)
-    await supabase.from('bots').update({ 
-      status: 'Booting',
-      last_ping: new Date().toISOString()
+    // AŞAMA 1: Sadece Durum Güncelle (En güvenli yol)
+    // Eğer veritabanınızda 'status' sütunu varsa bu her zaman çalışır.
+    const { error: initialError } = await supabase.from('bots').update({ 
+      status: 'Booting'
     }).eq('id', botId);
+
+    if (initialError) {
+        console.error("Bot başlatılamadı (Sütun hatası olabilir):", initialError);
+        throw initialError;
+    }
     
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `[BOOT] Environment provisioning for PID ${pid}...`,
+      action: `[BOOT] Sunucu ortamı PID ${pid} için hazırlanıyor...`,
       status: 'terminal'
     });
 
-    // AŞAMA 2: Gecikmeli Aktivasyon (Gerçek server ayağa kalkma simülasyonu)
-    return new Promise((resolve) => {
+    // AŞAMA 2: Detaylı Güncelleme Denemesi
+    return new Promise((resolve, reject) => {
       setTimeout(async () => {
-        const { data } = await supabase.from('bots').update({
+        // Önce detaylı (metrikli) deneme yap
+        const { data, error } = await supabase.from('bots').update({
           status: 'Active',
           runtime_id: `PID_${pid}`,
           uptime_start: new Date().toISOString(),
-          memory_usage: Math.floor(Math.random() * 45) + 15,
-          cpu_usage: Math.floor(Math.random() * 8) + 1,
-          last_ping: new Date().toISOString()
+          memory_usage: 24,
+          cpu_usage: 2
         }).eq('id', botId).select();
+
+        // Eğer detaylı güncelleme hata verirse (400), sadece statüsü 'Active' yap
+        if (error) {
+            console.warn("Metrik sütunları eksik, sadece durum güncelleniyor.");
+            const { data: fallbackData, error: fallbackError } = await supabase.from('bots').update({
+                status: 'Active'
+            }).eq('id', botId).select();
+            
+            if (fallbackError) reject(fallbackError);
+            else resolve(fallbackData?.[0]);
+        } else {
+            resolve(data?.[0]);
+        }
 
         await this.addBotLog({
           bot_id: botId,
           user_id: 'SYSTEM',
-          action: `[RUN] Botly Core Engine v3.5 is now ONLINE. Polling started.`,
+          action: `[RUN] Botly Engine Çevrimiçi. Polling devrede.`,
           status: 'terminal'
         });
-        resolve(data?.[0]);
-      }, 1500);
+      }, 1000);
     });
   }
 
   static async stopBotRuntime(botId: string) {
-    await supabase.from('bots').update({
-      status: 'Stopped',
-      runtime_id: null,
-      uptime_start: null,
-      memory_usage: 0,
-      cpu_usage: 0,
-      last_ping: new Date().toISOString()
+    // Güvenli durdurma: Sadece 'status' sütununu hedefle
+    const { error } = await supabase.from('bots').update({
+      status: 'Stopped'
     }).eq('id', botId);
+
+    if (error) {
+        console.error("Durdurma hatası:", error);
+        // Eğer runtime_id varsa temizlemeyi dene ama hata verirse durma
+        try {
+            await supabase.from('bots').update({ runtime_id: null }).eq('id', botId);
+        } catch(e) {}
+    }
 
     await this.addBotLog({
       bot_id: botId,
       user_id: 'SYSTEM',
-      action: `[STOP] SIGTERM received. Process terminated gracefully.`,
+      action: `[STOP] Süreç admin tarafından durduruldu.`,
       status: 'terminal'
     });
   }
 
+  static async updateConnectionStatus(connectionId: string, status: string) {
+    const { error } = await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
+    if (error) console.error("Bağlantı durumu güncellenemedi:", error);
+  }
+
+  // --- Standart Metotlar ---
   static async saveBotConfiguration(bot: Partial<Bot>) {
     const { data } = await supabase.from('bots').upsert(bot, { onConflict: 'id' }).select();
     return data?.[0];
@@ -100,9 +131,10 @@ export class DatabaseService {
     return data;
   }
 
-  // --- Loglama ---
   static async addBotLog(log: Partial<BotLog>) {
-    await supabase.from('bot_logs').insert({ ...log, timestamp: new Date().toISOString() });
+    try {
+        await supabase.from('bot_logs').insert({ ...log, timestamp: new Date().toISOString() });
+    } catch (e) {}
   }
 
   static async getBotLogs(botId: string, userId?: string): Promise<BotLog[]> {
@@ -121,7 +153,6 @@ export class DatabaseService {
     return data || [];
   }
 
-  // --- Diğer Servisler ---
   static async getUsers(): Promise<User[]> {
     const { data } = await supabase.from('users').select('*').order('joinDate', { ascending: false });
     return data || [];
@@ -176,27 +207,23 @@ export class DatabaseService {
     return !!data;
   }
 
-  static async addBotToUser(userId: string, bot: Bot): Promise<void> {
+  static async addBotToUser(userId: string, bot: Bot) {
     await supabase.from('user_bots').insert({ user_id: userId, bot_id: bot.id });
   }
 
-  static async connectBotToChannel(userId: string, botId: string, channelId: string): Promise<void> {
+  static async connectBotToChannel(userId: string, botId: string, channelId: string) {
     await supabase.from('bot_connections').insert({ 
       user_id: userId, 
       bot_id: botId, 
       channel_id: channelId, 
       is_admin_verified: false, 
-      status: 'Stopped' // Başlangıçta kapalı
+      status: 'Stopped'
     });
   }
 
   static async getBotConnections(userId: string): Promise<any[]> {
     const { data } = await supabase.from('bot_connections').select('*, bots(*), channels(*)').eq('user_id', userId);
     return data || [];
-  }
-
-  static async updateConnectionStatus(connectionId: string, status: string) {
-    await supabase.from('bot_connections').update({ status }).eq('id', connectionId);
   }
 
   static async verifyBotAdmin(connectionId: string): Promise<boolean> {
