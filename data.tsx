@@ -1,6 +1,6 @@
 
 import { Layout, Briefcase, Gamepad2, Zap, Wallet, Music, Shield, Star, Crown, Gem } from 'lucide-react';
-import { ExtendedBot, SubscriptionPlan, Notification } from './types';
+import { Bot, SubscriptionPlan, Notification } from './types';
 
 // Updated labels to use Translation Keys defined in TranslationContext
 export const categories = [
@@ -14,7 +14,7 @@ export const categories = [
 ];
 
 // Fixed: Added mandatory bot_link and screenshots to all mock bots to match the Bot interface
-export const mockBots: ExtendedBot[] = [
+export const mockBots: Bot[] = [
   { id: '1', name: 'Task Master', description: 'Görevleri yönetin', price: 29.99, icon: 'https://picsum.photos/seed/task/200', category: 'productivity', isNew: true, isPremium: true, bot_link: 'https://t.me/botlyhub_bot', screenshots: [] },
   { id: '2', name: 'GameBot Pro', description: 'Oyun sunucusu yönetimi', price: 0, icon: 'https://picsum.photos/seed/game/200', category: 'games', bot_link: 'https://t.me/botlyhub_bot', screenshots: [] },
   { id: '3', name: 'CryptoAlert', description: 'Anlık fiyat takibi', price: 99.99, icon: 'https://picsum.photos/seed/crypto/200', category: 'utilities', isPremium: true, bot_link: 'https://t.me/botlyhub_bot', screenshots: [] },

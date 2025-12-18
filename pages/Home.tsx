@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, ChevronRight, LayoutGrid, DollarSign, Loader2, Store, User, Bot as BotIcon, Megaphone, X, Info, Sparkles, Zap, Gift, Star, Heart, Bell, Shield } from 'lucide-react';
-// Fixed: Use namespace import for react-router-dom to resolve "no exported member" errors
 import * as Router from 'react-router-dom';
 import { Bot, Announcement } from '../types';
 import { categories } from '../data';
@@ -30,17 +29,9 @@ const PromoCard = ({ ann, onShowPopup }: { ann: Announcement, onShowPopup: (ann:
     } else {
         const link = ann.button_link;
         if (!link) return;
-        
-        // Profesyonel yönlendirme mantığı
-        if (link.startsWith('http://') || link.startsWith('https://')) {
-            window.location.href = link;
-        } else if (link.startsWith('/')) {
-            navigate(link);
-        } else {
-            // Telegram kullanıcı adı veya direkt domain girilmişse
-            const formattedLink = link.startsWith('@') ? `https://t.me/${link.substring(1)}` : `https://${link}`;
-            window.location.href = formattedLink;
-        }
+        if (link.startsWith('http')) window.location.href = link;
+        else if (link.startsWith('/')) navigate(link);
+        else window.location.href = link.startsWith('@') ? `https://t.me/${link.substring(1)}` : `https://${link}`;
     }
   };
 
@@ -67,16 +58,8 @@ const PromoCard = ({ ann, onShowPopup }: { ann: Announcement, onShowPopup: (ann:
 
 const BotCard: React.FC<{ bot: Bot }> = ({ bot }) => {
   const navigate = useNavigate();
-  
-  const handleClick = () => {
-      const recent = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
-      const filtered = recent.filter((b: Bot) => b.id !== bot.id);
-      localStorage.setItem('recentlyViewed', JSON.stringify([bot, ...filtered].slice(0, 10)));
-      navigate(`/bot/${bot.id}`);
-  };
-
   return (
-    <div onClick={handleClick} className="flex items-center py-4 px-3 cursor-pointer group hover:bg-slate-900/60 rounded-2xl transition-all border border-transparent hover:border-slate-800/50 mb-1">
+    <div onClick={() => navigate(`/bot/${bot.id}`)} className="flex items-center py-4 px-3 cursor-pointer group hover:bg-slate-900/60 rounded-2xl transition-all border border-transparent hover:border-slate-800/50 mb-1">
         <img src={bot.icon} alt={bot.name} className="w-16 h-16 rounded-[22px] object-cover bg-slate-900 shadow-xl border border-slate-800 flex-shrink-0" />
         <div className="flex-1 ml-4 min-w-0 mr-2">
             <div className="flex items-center gap-2 mb-0.5">
@@ -117,14 +100,6 @@ const Home = () => {
 
   useEffect(() => {
     loadData(activeCategory);
-    
-    const handleClickOutside = (event: MouseEvent) => {
-        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-            setIsMenuOpen(false);
-        }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeCategory]);
 
   const filteredBots = bots.filter(b => 
@@ -137,10 +112,10 @@ const Home = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-8 px-1 relative">
         <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#7c3aed] rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <BotIcon size={20} className="text-white" />
             </div>
-            <h1 className="text-xl font-black text-white tracking-tight uppercase italic">BotlyHub V3</h1>
+            <h1 className="text-xl font-black text-white tracking-tight uppercase italic">BOTLYHUB <span className="text-blue-500">V3.5</span></h1>
         </div>
         <div className="flex items-center gap-3">
             <button onClick={() => navigate('/earnings')} className="p-2.5 bg-slate-900/60 border border-slate-800 rounded-full text-[#10b981] shadow-sm active:scale-95 transition-transform"><DollarSign size={20} /></button>
@@ -160,21 +135,20 @@ const Home = () => {
 
       {/* Modern Search Bar */}
       <div className="relative mb-6 group">
-        <div className="absolute inset-0 bg-blue-500/5 blur-xl rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
         <div className="relative flex items-center bg-[#0f172a]/60 backdrop-blur-md border border-slate-800/80 rounded-[22px] p-1 shadow-inner focus-within:border-blue-500/40 transition-all">
             <Search className="ml-4 text-slate-500 w-5 h-5" />
             <input 
               type="text" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Hangi botu arıyorsun?"
+              placeholder="Bot Ara..."
               className="w-full bg-transparent py-4 px-3 text-sm text-white outline-none placeholder:text-slate-600 font-medium"
             />
         </div>
       </div>
 
       {isLoading && bots.length === 0 ? (
-          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-purple-500" /></div>
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-500" /></div>
       ) : (
           <>
             {!searchQuery && activeCategory === 'all' && announcements.length > 0 && (
@@ -203,7 +177,7 @@ const Home = () => {
 
             <div className="space-y-1">
                 <div className="flex justify-between items-center mb-6 px-1">
-                    <h2 className="text-lg font-black text-white tracking-tight uppercase">
+                    <h2 className="text-lg font-black text-white tracking-tight uppercase italic">
                         {searchQuery ? 'Arama Sonuçları' : (activeCategory === 'all' ? 'Öne Çıkanlar' : `${t(categories.find(c => c.id === activeCategory)?.label || '')}`)}
                     </h2>
                 </div>
@@ -211,44 +185,29 @@ const Home = () => {
                     filteredBots.map(bot => <BotCard key={bot.id} bot={bot} />)
                 ) : (
                     <div className="py-20 text-center flex flex-col items-center gap-4">
-                        <p className="text-slate-600 font-bold italic">Bot bulunamadı.</p>
+                        <p className="text-slate-600 font-bold italic">Kayıt bulunamadı.</p>
                     </div>
                 )}
             </div>
           </>
       )}
 
-      {/* MODAL TASARIMI */}
       {selectedAnn && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedAnn(null)}>
             <div className="bg-[#0f172a] w-full max-w-[280px] rounded-[24px] overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <div className="w-full h-[6px] bg-gradient-to-r from-[#6366f1] to-[#a855f7]" />
-                <button 
-                  onClick={() => setSelectedAnn(null)} 
-                  className="absolute top-4 right-4 w-8 h-8 bg-slate-800/40 rounded-full flex items-center justify-center text-slate-500 hover:text-white transition-colors"
-                >
-                  <X size={16}/>
-                </button>
+                <div className="w-full h-[6px] bg-blue-600" />
+                <button onClick={() => setSelectedAnn(null)} className="absolute top-4 right-4 w-8 h-8 bg-slate-800/40 rounded-full flex items-center justify-center text-slate-500"><X size={16}/></button>
                 <div className="p-8 pb-10">
                     <div className="w-12 h-12 bg-[#1e293b]/60 border border-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
                         {React.createElement(iconMap[selectedAnn.icon_name] || Sparkles, { size: 24, className: 'text-blue-400' })}
                     </div>
                     <h3 className="text-xl font-black text-white mb-2 tracking-tight">{selectedAnn.title}</h3>
-                    <div className="text-slate-500 text-sm leading-snug font-medium whitespace-pre-line">
+                    <div className="text-slate-500 text-sm leading-snug font-medium">
                         {selectedAnn.content_detail || selectedAnn.description}
                     </div>
                     {selectedAnn.action_type === 'link' && selectedAnn.button_link && (
-                        <button 
-                            onClick={() => {
-                                const link = selectedAnn.button_link;
-                                if (link.startsWith('http')) window.location.href = link;
-                                else if (link.startsWith('/')) navigate(link);
-                                else window.location.href = `https://${link}`;
-                                setSelectedAnn(null);
-                            }}
-                            className="mt-8 w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all active:scale-95"
-                        >
-                            {selectedAnn.button_text || 'Hemen Göz At'}
+                        <button onClick={() => { window.location.href = selectedAnn.button_link; setSelectedAnn(null); }} className="mt-8 w-full py-3 bg-blue-600 text-white font-black rounded-xl text-xs uppercase tracking-widest active:scale-95">
+                            {selectedAnn.button_text || 'Git'}
                         </button>
                     )}
                 </div>

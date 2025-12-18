@@ -10,8 +10,6 @@ export interface User {
   joinDate: string;
   email?: string;
   phone?: string;
-  isRestricted?: boolean;
-  canPublishAds?: boolean;
 }
 
 export interface Bot {
@@ -23,42 +21,36 @@ export interface Bot {
   category: string;
   bot_link: string;
   screenshots: string[];
+  python_code?: string; // Botun çekirdek çalışma kodları
+  status?: 'Active' | 'Deploying' | 'Error' | 'Stopped';
+  // Fixed: Added isNew and isPremium properties to match data.tsx and SearchPage usage
   isNew?: boolean;
-  features?: string[];
-  python_code?: string; // Botun kaynak kodları
-  status?: 'Active' | 'Deploying' | 'Error';
+  isPremium?: boolean;
 }
 
 export interface BotLog {
   id: string;
   bot_id: string;
   user_id: string;
+  channel_id?: string;
   action: string;
   timestamp: string;
-  status: 'success' | 'error' | 'info';
+  status: 'success' | 'error' | 'info' | 'critical';
 }
 
-export interface Announcement {
+export interface BotConnection {
   id: string;
-  title: string;
-  description: string;
-  button_text: string;
-  button_link: string;
-  icon_name: string;
-  color_scheme: string;
-  is_active: boolean;
-  action_type: 'link' | 'popup';
-  content_detail?: string;
-}
-
-export interface ExtendedBot extends Bot {
-  isPremium?: boolean;
+  user_id: string;
+  bot_id: string;
+  channel_id: string;
+  is_admin_verified: boolean;
+  last_check_at: string;
+  status: 'Active' | 'MissingPermissions' | 'Stopped' | 'Pending';
 }
 
 export interface UserBot extends Bot {
   isAdEnabled: boolean;
   isActive: boolean;
-  expiryDate?: string;
   purchased: boolean;
 }
 
@@ -73,30 +65,18 @@ export interface Channel {
   revenue: number;
 }
 
-export type ChainType = 'TON' | 'BSC' | 'TRX' | 'SOL' | 'STARS';
-
-export interface CryptoTransaction {
+export interface Announcement {
   id: string;
-  type: 'Deposit' | 'Withdrawal' | 'BotEarnings';
-  amount: number;
-  symbol: string;
-  chain: ChainType;
-  toAddress?: string;
-  date: string;
-  status: 'Success' | 'Pending' | 'Failed' | 'Processing';
-  hash: string;
-}
-
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  billingPeriod: 'Aylık' | 'Yıllık';
+  title: string;
   description: string;
-  features: string[];
-  color: string;
-  icon: any;
-  isPopular?: boolean;
+  button_text: string;
+  button_link: string;
+  icon_name: string;
+  color_scheme: string;
+  is_active: boolean;
+  action_type: 'link' | 'popup';
+  // Fixed: Added content_detail property used in Home.tsx line 206
+  content_detail?: string;
 }
 
 export interface Notification {
@@ -106,8 +86,33 @@ export interface Notification {
   message: string;
   date: string;
   isRead: boolean;
-  user_id?: string;
   target_type?: 'user' | 'global';
+}
+
+// Fixed: Added SubscriptionPlan interface used in data.tsx
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price: number;
+  billingPeriod: string;
+  description: string;
+  color: string;
+  icon: any;
+  features: string[];
+  isPopular?: boolean;
+}
+
+// Fixed: Added CryptoTransaction interface used in services/WalletService.ts
+export interface CryptoTransaction {
+  id: string;
+  type: 'Withdrawal' | 'Deposit' | 'Internal' | 'Payment';
+  amount: number;
+  symbol: string;
+  chain: string;
+  toAddress: string;
+  date: string;
+  status: 'Processing' | 'Completed' | 'Failed';
+  hash: string;
 }
 
 declare global {
