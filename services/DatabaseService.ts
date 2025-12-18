@@ -1,0 +1,249 @@
+
+import { createClient } from '@supabase/supabase-js';
+import { Bot, User, Channel, Announcement, Notification, BotLog } from '../types';
+
+const SUPABASE_URL = 'https://ybnxfwqrduuinzgnbymc.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_VeYQ304ZpUpj3ymB3ihpjw_jt49W1G-'; 
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+export class DatabaseService {
+  
+  // --- Dashboard Stats ---
+  static async getAdminStats() {
+    try {
+      const [users, bots, notifications, anns] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }),
+        supabase.from('bots').select('id', { count: 'exact', head: true }),
+        supabase.from('notifications').select('id', { count: 'exact', head: true }),
+        supabase.from('announcements').select('id', { count: 'exact', head: true })
+      ]);
+
+      return {
+        userCount: users.count || 0,
+        botCount: bots.count || 0,
+        notifCount: notifications.count || 0,
+        annCount: anns.count || 0
+      };
+    } catch (e) {
+      console.error("Stats Error:", e);
+      return { userCount: 0, botCount: 0, notifCount: 0, annCount: 0 };
+    }
+  }
+
+  // --- Bot Management ---
+  static async getBots(category?: string): Promise<Bot[]> {
+    try {
+      let query = supabase.from('bots').select('*').order('id', { ascending: false });
+      if (category && category !== 'all') {
+        query = query.eq('category', category);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async getBotById(id: string): Promise<Bot | null> {
+    try {
+      const { data, error } = await supabase.from('bots').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static async saveBot(bot: Partial<Bot>) {
+    const { error } = await supabase.from('bots').upsert({
+      ...bot,
+      id: bot.id || Math.random().toString(36).substr(2, 9),
+      screenshots: bot.screenshots || [],
+      status: bot.status || 'Active'
+    }, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  static async deleteBot(id: string) {
+    const { error } = await supabase.from('bots').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  // --- Ownership Control ---
+  static async checkBotOwnership(userId: string, botId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('user_bots')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('bot_id', botId)
+      .maybeSingle();
+    
+    return !!data;
+  }
+
+  static async addBotToUser(userId: string, bot: Bot) {
+    const { error } = await supabase.from('user_bots').upsert({
+      user_id: userId,
+      bot_id: bot.id,
+      purchased: bot.price > 0,
+      is_active: true,
+      added_at: new Date().toISOString()
+    }, { onConflict: 'user_id,bot_id' });
+    if (error) throw error;
+  }
+
+  // --- Bot Logs ---
+  static async getBotLogs(botId: string, userId: string): Promise<BotLog[]> {
+    const { data, error } = await supabase
+      .from('bot_logs')
+      .select('*')
+      .eq('bot_id', botId)
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+    return data || [];
+  }
+
+  static async addBotLog(log: Partial<BotLog>) {
+    await supabase.from('bot_logs').insert({
+      ...log,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // --- Notification System ---
+  static async getNotifications(userId?: string): Promise<Notification[]> {
+    try {
+      let query = supabase.from('notifications').select('*').order('date', { ascending: false });
+      if (userId) {
+          query = query.or(`user_id.eq.${userId},target_type.eq.global`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async sendNotification(notification: Partial<Notification>) {
+    const { error } = await supabase.from('notifications').insert({
+        ...notification,
+        id: notification.id || Math.random().toString(36).substr(2, 9),
+        date: new Date().toISOString(),
+        isRead: false
+    });
+    if (error) throw error;
+  }
+
+  static async markNotificationRead(id: string) {
+    const { error } = await supabase.from('notifications').update({ isRead: true }).eq('id', id);
+    if (error) throw error;
+  }
+
+  // --- Announcement Management ---
+  static async getAnnouncements(): Promise<Announcement[]> {
+    try {
+      const { data, error } = await supabase.from('announcements').select('*').order('id', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async saveAnnouncement(ann: Partial<Announcement>) {
+    const { error } = await supabase.from('announcements').upsert({
+        ...ann,
+        id: ann.id || Math.random().toString(36).substr(2, 9),
+        is_active: ann.is_active ?? true
+    }, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  static async deleteAnnouncement(id: string) {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  // --- Settings Management ---
+  static async getSettings() {
+    try {
+        const { data, error } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
+        if (error) return null;
+        return data;
+    } catch (e) {
+        return null;
+    }
+  }
+
+  static async saveSettings(settings: any) {
+    await supabase.from('settings').upsert({ id: 1, ...settings }, { onConflict: 'id' });
+  }
+
+  // --- User Management ---
+  static async getUsers(): Promise<User[]> {
+    try {
+      const { data, error } = await supabase.from('users').select('*').order('id', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async updateUserStatus(userId: string, status: string) {
+      await supabase.from('users').update({ status }).eq('id', userId);
+  }
+
+  static async syncUser(user: Partial<User>) {
+    await supabase.from('users').upsert(user, { onConflict: 'id' });
+  }
+
+  static async getUserDetailedAssets(userId: string) {
+      try {
+        const [channels, logs, userBots] = await Promise.all([
+            supabase.from('channels').select('*').eq('user_id', userId),
+            supabase.from('notifications').select('*').eq('user_id', userId).order('date', { ascending: false }),
+            supabase.from('user_bots').select('*, bots(*)').eq('user_id', userId)
+        ]);
+        
+        return {
+            channels: channels.data || [],
+            logs: logs.data || [],
+            bots: (userBots.data || []).map((ub: any) => ub.bots).filter(Boolean) as Bot[]
+        };
+      } catch (e) {
+          return { channels: [], logs: [], bots: [] };
+      }
+  }
+
+  // --- Channel Management ---
+  static async getChannels(userId: string): Promise<Channel[]> {
+    try {
+      const { data, error } = await supabase.from('channels').select('*').eq('user_id', userId);
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static async saveChannel(channel: Partial<Channel>) {
+    const { error } = await supabase.from('channels').upsert({
+      ...channel,
+      id: channel.id || Math.random().toString(36).substr(2, 9)
+    }, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  static setAdminSession(token: string) { localStorage.setItem('admin_v3_session', token); }
+  static isAdminLoggedIn(): boolean { return !!localStorage.getItem('admin_v3_session'); }
+  static logoutAdmin() { localStorage.removeItem('admin_v3_session'); }
+
+  static async init() {
+    console.log("BotlyHub Logic v5.0 - Bot Protection Ready");
+  }
+}
